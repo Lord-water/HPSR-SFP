@@ -98,8 +98,12 @@ class ScientificMath(unittest.TestCase):
         dev = dict(h=self.rng.normal(size=(10, 12, 3)), u=self.rng.normal(size=(10, 12)),
                    record_ids=np.array(['d'+str(i) for i in range(10)]), encoder_id=np.array('fixture'))
         dy = np.tile(np.array([0, 1]*5)[:, None], (1, 12))
-        model, trace = fit_selected(train, dev, self.y, dy, np.repeat(np.arange(5), 2), 'hpsr')
-        self.assertEqual(len(trace), 120)
+        # Exercise residual/shared and cue-enabled/cue-free branches without
+        # running the full scientific hyperparameter search in a unit test.
+        with patch('hpsr_sfp.selection.itertools') as grid:
+            grid.product.return_value = iter([(.3, 5., True), (.3, float('inf'), False)])
+            model, trace = fit_selected(train, dev, self.y, dy, np.repeat(np.arange(5), 2), 'hpsr')
+        self.assertEqual(len(trace), 4)
         before = predict_bundle(model, dev)
         with tempfile.TemporaryDirectory() as folder:
             file = Path(folder)/'readout.json'
