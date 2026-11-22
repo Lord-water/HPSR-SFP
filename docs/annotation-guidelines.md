@@ -22,4 +22,4 @@ This clarification is part of the study history. Keep `first_test` and `confirma
 
 ## Machine-readable conventions
 
-All final mappings contain each of the twelve candidates in [label order](../data/labels/label_order.json). A/N/U become 1/0/-1 for modeling. U is excluded from the judgment loss and applicable label-wise metrics. An explicit N for an observed corpus ending suppresses that example's conflicting usage target during training. These conventions do not turn unobserved endings into negative human judgments.
+All final mappings contain each of the twelve candidates in [label order](../data/labels/label_order.json). A/N/U become 1/0/-1 for modeling. U is excluded from the judgment loss and applicable label-wise metrics. In the historical joint-training runner, an explicit N for an observed ending suppresses that example's conflicting usage target. The current HPSR-SFP pipeline separates observed-choice adaptation from human-judgment readout fitting: corpus choices remain observational usage targets, while N remains a negative judgment only in the acceptability objective. Neither procedure turns unobserved endings into negative human judgments.

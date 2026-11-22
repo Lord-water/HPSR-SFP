@@ -1,0 +1,49 @@
+{
+  "backbone_repo": "Qwen/Qwen2.5-1.5B-Instruct",
+  "feature_dimension": 1536,
+  "seed": 42,
+  "max_length": 256,
+  "usage_epochs": 1,
+  "effective_batch_size": 16,
+  "learning_rate": 0.0001,
+  "weight_decay": 0.01,
+  "lora": {
+    "rank": 8,
+    "alpha": 16,
+    "dropout": 0.05,
+    "targets": [
+      "q_proj",
+      "v_proj",
+      "query",
+      "value"
+    ]
+  },
+  "hpsr_lambda": [
+    0.1,
+    0.3,
+    1.0,
+    3.0,
+    10.0,
+    30.0
+  ],
+  "hpsr_rho": [
+    1.0,
+    5.0,
+    10.0,
+    50.0,
+    "infinity"
+  ],
+  "usage_cues": [
+    false,
+    true
+  ],
+  "bias_penalty": 0.005,
+  "usage_cue_penalty": "lambda_shared",
+  "calibrators": [
+    "temp",
+    "candidate"
+  ],
+  "folds": "protocols/hpsr_development_folds.json",
+  "selection": "Minimum development context-fold OOF Macro-Brier; no test labels",
+  "dependency_environment": "requirements-hpsr.txt"
+}

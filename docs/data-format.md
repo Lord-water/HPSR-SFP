@@ -1,3 +1,5 @@
+> This page documents the historical baseline interfaces. For the current HPSR-SFP pipeline, see [current usage](usage.md).
+
 # Input format
 
 The released `data/labels/` contains final annotations and `data/index/` contains text-free corpus indices. Store reconstructed or custom dialogue records under ignored `data/local/`. See [data access](data-access.md) for reconstruction. The examples below are invented schema illustrations, not study samples or human judgments.

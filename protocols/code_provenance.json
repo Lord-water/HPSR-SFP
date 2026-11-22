@@ -1,0 +1,53 @@
+{
+  "scope": "Scientific function/class bodies extracted without mathematical changes; imports and command-line packaging reorganized.",
+  "files": [
+    {
+      "destination": "hpsr_sfp/encoder.py",
+      "source_name": "pdcs_core.py",
+      "source_sha256": "05ea6fc5f2775718287e84bb1c7f72855ceceb996e5d09d9dde713e816fd23f6",
+      "preserved_bodies": [
+        "seed",
+        "LoRALinear",
+        "UsageEncoder",
+        "tokenize",
+        "batch",
+        "usage_loss"
+      ]
+    },
+    {
+      "destination": "hpsr_sfp/readouts.py",
+      "source_name": "legacy_math.py",
+      "source_sha256": "c725095bdc9c20b8532a77091b708d66438efd02708790e7efbc7798f7b5f49f",
+      "preserved_bodies": [
+        "scores",
+        "prepare",
+        "fit",
+        "predict",
+        "calibrate",
+        "apply_cal"
+      ]
+    },
+    {
+      "destination": "hpsr_sfp/hierarchical.py",
+      "source_name": "initial_stabilized_stage4.py",
+      "source_sha256": "c95b1d84c6dfa07d9b98a85a82533c698e68b3fcf23f59078754c03b91fcaa2e",
+      "preserved_bodies": [
+        "objective",
+        "hfit",
+        "hpredict",
+        "hcal",
+        "oof",
+        "rules"
+      ]
+    },
+    {
+      "destination": "hpsr_sfp/statistics.py",
+      "source_name": "initial_stabilized_stage4.py",
+      "source_sha256": "c95b1d84c6dfa07d9b98a85a82533c698e68b3fcf23f59078754c03b91fcaa2e",
+      "preserved_bodies": [
+        "paired",
+        "holm"
+      ]
+    }
+  ]
+}

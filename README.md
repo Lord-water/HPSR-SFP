@@ -1,91 +1,59 @@
-<p align="center"><img src="assets/pragio-banner.svg" width="100%" alt="Pragio — Chinese sentence-final acceptability" /></p>
+<p align="center"><img src="assets/hpsr-banner.svg" width="100%" alt="HPSR-SFP — Contextual acceptability meets natural usage" /></p>
 
-<p align="center"><b>Separate usage and judgment supervision for language in context.</b></p>
-<p align="center"><a href="#the-idea">The idea</a> · <a href="#how-it-works">How it works</a> · <a href="#try-the-core">Try the core</a> · <a href="docs/usage.md">Training & inference</a> · <a href="docs/data-format.md">Data format</a></p>
+<p align="center"><b>Counterfactual particle substitution · Stabilized shared readout · Usage-informed selection</b></p>
+<p align="center"><a href="docs/usage.md">Run the method</a> · <a href="docs/data-access.md">Get the annotations</a> · <a href="docs/reproduction.md">Reproduction scope</a> · <a href="docs/legacy-usage.md">Historical baselines</a></p>
 
-**Code + annotations** · PyTorch · Chinese NLP
+## One observed ending, several acceptable alternatives
 
-Implementation for contextual acceptability modeling, with **498 human-annotated contexts**, fixed corpus indices and recorded training configurations. Obtain the source dialogue corpus and pretrained backbone separately under their original terms.
+An observed Chinese sentence-final particle reveals a speaker's usage choice. It does not establish that the other endings are unacceptable. **HPSR-SFP** is the code project for a **Counterfactual Particle Substitution Framework** that keeps observational usage learning separate from human acceptability judgments. **Stabilized HPSR** denotes its hierarchical parameter-sharing readout.
 
-## The idea
-
-A speaker chooses one sentence ending. That observation alone does not tell us whether other endings would also be acceptable in the same context.
-
-Pragio models these two questions with separate heads over a shared encoder: **which candidate was used**, and **which candidates are acceptable**. Acceptability scores are candidate-wise; they do not need to sum to one.
+This project continues the earlier Pragio repository. The current method uses frozen candidate-conditioned representations; the earlier jointly trained two-head implementation remains available as a historical baseline.
 
 ## How it works
 
-![Pragio training and inference. Dialogue history and a masked target pass through a shared BERT-style encoder. Separate usage and acceptability heads produce softmax and candidate-wise sigmoid scores. Observed choices supervise NLL; known human judgments supervise masked BCE, excluding U labels. Their weighted sum trains the model. At inference, the acceptability head feeds calibration fitted on development data.](assets/method.png)
+```mermaid
+flowchart TD
+    A[Dialogue history + fixed reply body] --> B[Enumerate twelve particle substitutions]
+    B --> C[Backbone + low-rank usage adaptation]
+    U[Observed corpus choices] -->|choice cross-entropy| C
+    C --> D[Freeze encoder and usage scorer]
+    D --> E[Uncentered candidate representations + usage utilities]
+    E --> F[Stabilized hierarchical parameter-sharing readout]
+    H[Human A / N / U judgments] -->|masked binary supervision| F
+    F --> G[Development-only calibration]
+    G --> I[Usage-informed PoE / Bayes-Gate]
+    D -->|frozen usage prior| I
+```
 
-*The dialogue is illustrative. The diagram shows the architecture and supervision, not experimental predictions.*
+- **Adapt first, then freeze.** Observed choices adapt the backbone; unchosen candidates are never assigned human negative labels by this objective.
+- **Retain raw context baselines.** Candidate-conditioned features remain uncentered within each context. Feature standardization uses training moments only.
+- **Share and stabilize.** A shared high-dimensional direction and shrunken candidate residuals combine with regularized biases and optional usage cues.
+- **Select with both signals.** Calibrated acceptability combines with the usage prior through fixed PoE and 0.5-gated rules.
 
-| Usage | Acceptability |
-| :--- | :--- |
-| Learn from observed corpus choices | Learn from explicit human judgments |
-| One distribution across candidate endings | One score for each candidate ending |
-| Negative log-likelihood | Binary cross-entropy on known labels |
-
-## Try the core
-
-Install the dependencies and run commands from the repository root:
+## Start here
 
 ```bash
-python -m pip install -r requirements-training.txt
+python -m pip install -r requirements-hpsr.txt
+python -m hpsr_sfp --help
+python -m unittest discover -s tests -v
 ```
 
-The following example shows the head and loss interface. These are synthetic inputs for the head and loss interface; they do not demonstrate trained predictions.
+The tests use synthetic inputs only; they do not establish model performance or download pretrained models. For full adaptation and inference, obtain a local backbone and reconstruct the licensed source inputs. Follow the [stage-by-stage commands](docs/usage.md).
 
-```python
-import torch
-from src.method_core import ParticleHeads, joint_loss
-
-# Synthetic features and labels; no trained checkpoint is loaded.
-heads = ParticleHeads(hidden_size=32, num_labels=12, mode="independent")
-output = heads(torch.randn(2, 32))
-judgments = torch.full((2, 12), -1.0)  # unknown / unrated
-judgments[0, 0] = 1.0                # acceptable
-judgments[0, 1] = 0.0                # unacceptable
-
-loss = joint_loss(output, observed=torch.tensor([0, 2]), human=judgments)
-loss["loss"].backward()
-```
-
-CPU implementation checks on synthetic inputs (no model download):
-
-```bash
-python src/check_method_core.py
-python src/check_training_interface.py
-```
-
-## Labels
-
-| Label | Meaning | Loss treatment |
-| :--- | :--- | :--- |
-| **A** · `1` | Acceptable in context | Positive judgment |
-| **N** · `0` | Unacceptable in context | Negative judgment |
-| **U** · `-1` | Uncertain or unrated | Masked from judgment loss |
-
-Unobserved candidates are not automatically assigned negative acceptability labels. Unknown judgments do not enter the judgment loss. Model outputs estimate contextual acceptability; they are not guarantees of correctness or preferred continuation selection.
-
----
-
-## Explore the code
-
-| Start here | What you will find |
+| Component | Entry point |
 | :--- | :--- |
-| [Training and inference](docs/usage.md) | Configuration, commands and development-only calibration |
-| [Input format](docs/data-format.md) | Dialogue records, candidate order and judgment encoding |
-| [Data access](docs/data-access.md) | 498 final annotation records and reconstruction of fixed LCCC inputs |
-| [Annotation protocol](docs/annotation-guidelines.md) | A/N/U decisions, review and later clarification |
-| [Experiment configurations](docs/experiment-configurations.md) | 40 launchable configurations and development selection |
-| [Heads and losses](src/method_core.py) | Independent heads and comparison objectives |
-| [Encoder interface](src/training_interface.py) | Context encoding and masked human supervision |
-| [Calibration](src/development_calibration.py) | Shared calibration; [candidate offsets](src/candidate_calibration.py) |
+| Candidate-conditioned encoder and LoRA | [encoder.py](hpsr_sfp/encoder.py) |
+| Stabilized HPSR and shrinkage calibration | [hierarchical.py](hpsr_sfp/hierarchical.py) |
+| Development-fold selection | [selection.py](hpsr_sfp/selection.py) |
+| Raw, centered and scalar readout controls | [readouts.py](hpsr_sfp/readouts.py) |
+| Paired bootstrap, randomization and Holm | [statistics.py](hpsr_sfp/statistics.py) |
+| Recorded current-method settings | [configs](configs/hpsr_qwen25_15b.json) / [RoBERTa](configs/hpsr_roberta_wwm.json) |
+| Historical two-head / AN-LS / EPR / CRISP baselines | [legacy usage](docs/legacy-usage.md) |
 
-This release contains code, text-free annotation records and corpus indices, configurations, documentation and artwork. Raw dialogue text, NaturalConv-derived record-level materials, paper files, empirical model results, predictions, trained weights and fitted calibration parameters are not included. It is not a complete archive of every experiment.
+## Annotations and release boundaries
 
-## Attribution and use
+The repository includes **498 final annotated contexts** as text-free IDs with twelve A/N/U judgments each: **48 training, 50 development, 200 Test-Initial and 200 Test-Refined**. It also supplies fixed LCCC indices and a source reconstruction script. `first_test.json` maps to **Test-Initial**; `confirmation.json` maps to **Test-Refined**. Source dialogue must be obtained separately under its original terms.
 
-AN-LS follows the loss formulation in [Cole et al., CVPR 2021](https://openaccess.thecvf.com/content/CVPR2021/html/Cole_Multi-Label_Learning_From_Single_Positive_Labels_CVPR_2021_paper.html); the additional human-judgment term is a task adaptation. Pretrained models retain their original terms. See [the research-use notice](NOTICE.md).
+**U means unresolved**, not negative. The two in-domain test partitions retain their distinct annotation guidance. They are not interchangeable repetitions. See [annotation guidance](docs/annotation-guidelines.md).
 
-Questions about the implementation can be raised in [Issues](https://github.com/Lord-water/Pragio/issues).
+NaturalConv-derived X100 record-level materials are not distributed. Paper files, experimental result tables, predictions, trained weights and fitted readout/calibration parameters are also excluded. No complete-experiment-archive or turnkey numerical-reproduction claim is made. See [data access](docs/data-access.md), [reproduction scope](docs/reproduction.md), and [research-use notice](NOTICE.md).

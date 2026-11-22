@@ -1,107 +1,63 @@
-# Training, inference and calibration
+# HPSR-SFP: stage-by-stage usage
 
-Run commands from the repository root using Python 3.10 or newer. Recorded configurations and final human labels are included; raw source dialogue, checkpoints and fitted parameters are not. Obtain and reconstruct the source inputs before training. `configs/example.json` remains a separate, generic interface example.
+Run from the repository root with Python 3.10 or newer. The `hpsr_sfp` package is the current method; `scripts/train.py` and `src/` remain historical baseline interfaces. No stage is launched automatically on import. Commands below create new private outputs, not published study artifacts.
 
-## 1. Install
-
-```bash
-python -m pip install -r requirements-training.txt
-python src/check_method_core.py
-python src/check_training_interface.py
-python src/experiments/check_epr.py
-python src/experiments/check_crisp.py
-```
-
-The checks use synthetic tensors and a tiny randomly initialized BERT. They need no pretrained download and establish implementation properties, not model performance. For calibration and scoring only, use `requirements-analysis.txt` instead.
-
-## 2. Prepare local inputs
-
-For the released study, reconstruct the fixed inputs as described in [data access](data-access.md):
+## 1. Install and reconstruct the source inputs
 
 ```bash
+python -m pip install -r requirements-hpsr.txt
 python scripts/restore_lccc.py --source /path/to/LCCC-large.zip
 python scripts/validate_release.py
 ```
 
-For custom data instead, follow [the input format](data-format.md) and edit a copy of `configs/example.json`. The mixed-batch runner requires some known human training judgments. Its `single` comparison ignores the human loss but still uses that schedule; it is not a standalone no-annotation trainer.
+Acquire the source through its original provider. See [data access](data-access.md). The public annotations and indices are unchanged. Do not resample or repartition them. Obtain a local `Qwen/Qwen2.5-1.5B-Instruct` or `hfl/chinese-roberta-wwm-ext` model separately, respecting its terms. Model names are provider identifiers, not redistributed weights. The exact original local weight revision is not certified by this release.
 
-Supply a local BERT-compatible encoder and tokenizer, or download the example backbone:
-
-```bash
-python scripts/download_backbone.py --config configs/original_independent_s42.json
-```
-
-If using a different backbone, change its repository, pinned revision and local path together. The downloader and model loading use the original model provider's terms.
-
-## 3. Train
+## 2. Adapt on natural choices
 
 ```bash
-python scripts/train.py --run original_independent_s42 --dry-run
-python scripts/train.py --run original_independent_s42
+python -m hpsr_sfp adapt --backbone /local/backbone --inputs data/local/train_ready.jsonl --output outputs/hpsr/adapter --device cuda
 ```
 
-Full training requires CUDA with bfloat16 support in this runner. Set memory limits and batch sizes for the available GPU. Each run directory must be new. A positive `--max-steps` enables a short CPU/GPU debugging run; it is not a full training run.
+One usage epoch; seed 42; 256 tokens; effective batch 16 (one context with twelve candidates per microbatch); AdamW 1e-4; weight decay .01; rank-8 LoRA with alpha 16 and dropout .05 on attention query/value projections; 5% warmup and the recorded floored cosine schedule. This objective uses only observed choices, not human acceptability labels. GPU execution caps this process at 32% of total device memory and checks free-memory margins. Resource checks cannot reserve memory against other processes. `latest.pt` is an intermediate parameter checkpoint; the public launcher does not yet implement optimizer/RNG-exact resume. Only completed `adapter.pt` is valid for feature extraction.
 
-The `independent` mode is the separate-head method. Other modes (`coupled`, `no_preference`, `an_ls`, `single`) are comparison implementations. Select checkpoints with independent development judgments. The runner's corpus-choice accuracy and human **training** fit are diagnostics, not evidence for human acceptability generalization. Freeze selection and calibration before test evaluation.
+## 3. Extract frozen features
 
-EPR, CRISP and the matched Human-only control have dedicated runners exposed through the same launcher. Run `python scripts/train.py --help` for available IDs and read [configuration notes](experiment-configurations.md) for the comparison families. For a generic custom configuration, invoke `src/train_context_model.py` directly with `--config`, `--mode` and `--run-dir`.
-
-## 4. Predict
-
-Use an actual saved epoch checkpoint and supply the same local backbone path recorded during training:
+First select the annotated contexts by ID; this avoids extracting features for the full usage corpus a second time.
 
 ```bash
-python scripts/predict.py --checkpoint outputs/runs/original_independent_s42/epoch1.pt --inputs data/local/dev_ready.jsonl --output outputs/dev_raw.json
+python -m hpsr_sfp select-records --inputs data/local/train_ready.jsonl --labels data/labels/train.json --output data/local/human_train.jsonl
+python -m hpsr_sfp select-records --inputs data/local/dev_ready.jsonl --labels data/labels/dev.json --output data/local/human_dev.jsonl
+python -m hpsr_sfp features --backbone /local/backbone --adapter outputs/hpsr/adapter/adapter.pt --inputs data/local/human_train.jsonl --output outputs/hpsr/train.npz --device cuda
+python -m hpsr_sfp features --backbone /local/backbone --adapter outputs/hpsr/adapter/adapter.pt --inputs data/local/human_dev.jsonl --output outputs/hpsr/dev.npz --device cuda
 ```
 
-The command performs CPU float32 inference and refuses to overwrite its output. `epoch1.pt` is an interface example, not a recommended selected epoch. Only load trusted local checkpoints. Raw sigmoid scores are not automatically calibrated.
+For an existing larger feature cache, `python -m hpsr_sfp subset --features outputs/all.npz --labels data/labels/train.json --output outputs/train.npz` selects the requested IDs without changing their order.
 
-## 5. Fit and apply calibration
+Omitting `--adapter` produces the unadapted Base-Raw control. Each cache stores `h[N,12,D]`, `u[N,12]`, record IDs, explicit candidate order, an encoder identity and input hash. Load only trusted local adapter checkpoints. Extraction also supports `--device cpu`; CPU and CUDA dtypes can produce numerical differences, so use the original CUDA precision for a numerical reproduction.
 
-For the released protocol, the training run writes raw development predictions for each completed epoch. Supply them in checkpoint order:
+## 4. Select and calibrate the readout
 
 ```bash
-python scripts/select_and_calibrate.py --predictions outputs/runs/original_independent_s42/epoch1_dev_predictions.json outputs/runs/original_independent_s42/epoch2_dev_predictions.json outputs/runs/original_independent_s42/epoch3_dev_predictions.json --output outputs/selection.json
+python -m hpsr_sfp fit --train-features outputs/hpsr/train.npz --dev-features outputs/hpsr/dev.npz --train-labels data/labels/train.json --dev-labels data/labels/dev.json --folds protocols/hpsr_development_folds.json --method hpsr --output outputs/hpsr/readout.json
 ```
 
-Read `selected_checkpoint` in `selection.json`: it identifies the selected checkpoint's **prediction file**. Use the corresponding `.pt` checkpoint for inference. For example, `epoch2_dev_predictions.json` corresponds to `epoch2.pt`; that name is an illustration, not a preselected result. Generate raw predictions on `data/local/heldout_ready.jsonl`, save them as `outputs/heldout_raw.json`, and apply the frozen bundle:
+All feature/usage moments and high-dimensional weights are fit on the 48 training contexts. The fixed 50-context development folds choose the readout grid and calibration family by context-fold OOF Macro-Brier. Calibration is then fit on all development judgments for subsequent application. This is **calibrator cross-fitting**: the high-dimensional readout is not re-trained within those development folds, and the selected OOF score is a selection statistic rather than an unbiased final test estimate.
+
+The recorded HPSR grid is 6 lambda values × 5 residual shrinkage ratios × 2 usage-cue settings, each with temperature and shrunk-candidate calibration. `--method raw`, `centered`, `scalar`, or `spline` provides the same nine-L2/four-calibrator controls. For Base-Raw use the raw control with unadapted features. Search traces, optimizer success flags, gradients and selected parameters are written to the private bundle; an iteration cap is not a convergence guarantee. Tie-breaking follows grid enumeration order. No test labels are accepted by `fit`.
+
+## 5. Predict first; score separately
 
 ```bash
-python scripts/calibrate.py apply --predictions outputs/heldout_raw.json --parameters outputs/selection.json --family shared --output outputs/heldout_calibrated.json
-python scripts/evaluate.py --predictions outputs/heldout_calibrated.json --annotations data/labels/confirmation.json --output outputs/confirmation_metrics.json
+python -m hpsr_sfp select-records --inputs data/local/heldout_ready.jsonl --labels data/labels/first_test.json --output data/local/initial.jsonl
+python -m hpsr_sfp features --backbone /local/backbone --adapter outputs/hpsr/adapter/adapter.pt --inputs data/local/initial.jsonl --output outputs/hpsr/heldout.npz --device cuda
+python -m hpsr_sfp predict --features outputs/hpsr/heldout.npz --readout outputs/hpsr/readout.json --output outputs/hpsr/heldout_predictions.json
+python -m hpsr_sfp score --predictions outputs/hpsr/heldout_predictions.json --labels data/labels/first_test.json --output outputs/hpsr/initial_metrics.json
 ```
 
-Use `--family candidate` for the separately selected candidate-calibration comparison, and `data/labels/first_test.json` for the other evaluation batch. The application command does not enforce checkpoint identity: supply predictions from the checkpoint identified by selection. Do not select between calibration families on test performance.
+Repeat with `confirmation.json` and new output paths for Test-Refined. The subset step reads only annotation IDs; feature extraction and prediction do not inspect judgment values.
 
-For a custom development set and a preselected calibration family:
+Scoring selects annotation IDs from a larger prediction file while requiring complete coverage. It reports Macro-Brier, supported-candidate Macro-AUROC, pooled ten-bin ECE, per-particle values and selected A/N/U counts. U is masked in probability metrics and retained in output counts. Usage-only, PoE and Bayes-Gate are all computed without access to test judgments. PoE maximizes log usage + log calibrated acceptability; Gate restricts to p >= .5, falling back to argmax acceptability if empty. Inventory order breaks ties.
 
-```bash
-python scripts/calibrate.py fit --dev-predictions outputs/dev_raw.json --dev-annotations data/labels/dev.json --dev-records data/local/dev_ready.jsonl --kind affine_sigmoid --output outputs/custom_calibration.json
-python scripts/calibrate.py apply --predictions outputs/dev_raw.json --parameters outputs/custom_calibration.json --output outputs/custom_dev_calibrated.json
-```
+## 6. Paired inference
 
-Available families are `raw`, `temperature`, `affine_sigmoid` and `candidate_shrinkage`. Candidate shrinkage additionally accepts a positive `--lambda`; tune it on development data only. It uses candidate offsets only when both positive and negative development counts reach five, with zero offsets otherwise. Never fit on test judgments. The split check verifies supplied metadata; the user remains responsible for truthful partitioning and source separation.
-
-After fixing all development choices, obtain scores for held-out inputs and apply the same saved calibrator. Do not refit it. Development fit scores are not held-out estimates.
-
-## 6. Evaluate supplied labels
-
-```bash
-python scripts/evaluate.py --predictions outputs/dev_calibrated.json --annotations data/labels/dev.json --output outputs/dev_metrics.json
-```
-
-The evaluator masks `U` consistently and reports candidate-wise Brier/BCE/AUROC and ranking/coverage summaries. These scripts generate new outputs locally; no experimental outputs are distributed in this repository.
-
-## Repository map
-
-| Path | Purpose |
-| :--- | :--- |
-| `src/` | Model interface, objectives, training, metrics and calibration routines |
-| `scripts/` | Backbone download, prediction, calibration and evaluation entry points |
-| `configs/example.json` | Editable local-input configuration |
-| `configs/`, `protocols/training_runs.json` | Recorded run settings and launcher registry |
-| `data/labels/`, `data/index/` | Final judgments and text-free fixed corpus indices |
-| `docs/` | Input schemas and usage |
-| `assets/` | Original README banner and method overview |
-
-`data/local/`, `models/`, `outputs/`, `results/`, `predictions/` and checkpoints are ignored by Git. Only the explicit label/index release and source manifest are included under `data/`. Keep private material outside the release tree; `.gitignore` does not erase files already committed.
+`hpsr_sfp.statistics.paired(p, baseline, y, group_ids, reps=2000)` returns the paired Brier difference, context-cluster bootstrap CI and two-sided sign-randomization p value. Supply matrices in identical record/candidate order and use the original grouping keys. `holm(comparisons)` adjusts the explicitly supplied family **in place**. For the six Base-Raw attribution comparisons, pass all two-backbone × three-track comparisons in one family. Do not choose a correction family after inspecting significance. These functions are reusable analysis code; no empirical result files or predictions are distributed.

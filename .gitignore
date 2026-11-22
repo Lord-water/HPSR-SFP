@@ -25,6 +25,11 @@ results/
 *.pt
 *.pth
 *.safetensors
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.ckpt
 *.pdf
 *.tex
 *.log

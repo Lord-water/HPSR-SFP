@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" role="img" aria-labelledby="title desc">
+<title id="title">HPSR-SFP</title><desc id="desc">Contextual acceptability meets natural usage. Counterfactual representations, stabilized shared readout.</desc>
+<rect width="1200" height="300" rx="18" fill="#F3F6FA"/><path d="M800 0H1200V300H1050Z" fill="#E4EBF3"/>
+<text x="55" y="62" font-family="Arial,sans-serif" font-size="16" font-weight="bold" letter-spacing="3" fill="#526B85">CHINESE SENTENCE-FINAL PARTICLES</text>
+<text x="50" y="155" font-family="Arial,sans-serif" font-size="79" font-weight="bold" fill="#1F4E78">HPSR-SFP</text>
+<text x="55" y="207" font-family="Arial,sans-serif" font-size="25" fill="#263A50">Contextual acceptability meets natural usage.</text>
+<text x="55" y="253" font-family="Arial,sans-serif" font-size="17" fill="#526B85">Counterfactual representations  /  Stabilized shared readout</text>
+<g transform="translate(920 59)"><rect width="145" height="94" rx="18" fill="#1F4E78"/><path d="M25 94V114L52 94" fill="#1F4E78"/><text x="72" y="66" text-anchor="middle" font-family="Arial,Microsoft YaHei,sans-serif" font-size="56" fill="white">吗</text></g>
+<g transform="translate(1025 157)"><rect width="120" height="77" rx="15" fill="#D95F43"/><path d="M87 77L110 98V77" fill="#D95F43"/><text x="60" y="55" text-anchor="middle" font-family="Arial,Microsoft YaHei,sans-serif" font-size="47" fill="white">呢</text></g></svg>

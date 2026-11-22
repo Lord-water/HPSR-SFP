@@ -1,3 +1,5 @@
+> This page documents the historical baseline interfaces. For the current HPSR-SFP pipeline, see [current usage](usage.md).
+
 # Recorded training configurations
 
 [The run registry](../protocols/training_runs.json) exposes 40 launchable configurations from the existing study. It contains runner paths and arguments, not selected checkpoints, scores or fitted calibrators. Configuration filenames retain their original run identifiers to preserve traceability.

@@ -1,6 +1,6 @@
 # Data access and release scope
 
-Pragio releases **498 final human-annotated contexts**, represented by text-free record IDs and twelve A/N/U judgments per context. Source dialogue text must be obtained separately. The labels are research annotations, not model predictions or experimental scores.
+HPSR-SFP retains the earlier release of **498 final human-annotated contexts**, represented by text-free record IDs and twelve A/N/U judgments per context. Source dialogue text must be obtained separately. The labels are research annotations, not model predictions or experimental scores.
 
 | Annotation partition | Contexts | Corpus partition | Intended use |
 | :--- | ---: | :--- | :--- |
@@ -27,7 +27,7 @@ data/local/dev_ready.jsonl       4,026 rows
 data/local/heldout_ready.jsonl   3,916 rows
 ```
 
-The released [index](../data/index) fixes the original 39,963 retained records and their order. It records source member, dialogue/turn offsets, grouping keys, observed particle and a text-field hash. It does not contain dialogue strings. Do not resample or reassign partitions when reproducing this setup. Reconstruction rejects text mismatches and existing output files. A matching ZIP filename alone does not establish a matching source version.
+The released [index](../data/index) fixes the original 39,963 retained records and their order. It records source member, dialogue/turn offsets, grouping keys, observed particle and a text-field hash. It does not contain dialogue strings. Do not resample or reassign partitions when reproducing this setup. Reconstruction rejects text mismatches and existing output files. A matching ZIP filename alone does not establish a matching source version. The retained corpus indices are not additional human judgments: only the 498 annotated contexts have the released A/N/U labels.
 
 Annotation files map `record_id` to judgments. Join them to restored records by this ID. The 498 annotated contexts are a subset of the corpus partitions, not 498 additional natural training examples. Held-out text and labels must not enter training, tuning, or calibration.
 
@@ -38,3 +38,7 @@ The LCCC repository's code license does not, by itself, settle redistribution ri
 NaturalConv-based external-context and output-evaluation materials are **not included**: no X100/Y100 dialogue text, record-level annotations or continuations. Consult the [author-hosted NaturalConv dataset](https://huggingface.co/datasets/xywang1/NaturalConv) and its [license](https://huggingface.co/datasets/xywang1/NaturalConv/blob/main/LICENSE) for permitted access and use. This release does not grant permission to redistribute those materials.
 
 Paper files, empirical model scores, per-record predictions, model checkpoints and fitted calibration parameters are also excluded. Releasing annotations and configurations does not make this a complete archive of every experiment. See [NOTICE](../NOTICE.md) for this project's research-use terms.
+
+## Current paper names
+
+`first_test.json` is **Test-Initial** and `confirmation.json` is **Test-Refined**. Existing IDs, judgments and source indices are unchanged. The current method uses `protocols/hpsr_development_folds.json`; `development_folds.json` remains the earlier baseline mapping.
